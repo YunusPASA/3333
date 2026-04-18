@@ -1,57 +1,178 @@
-# schedsim.s
-# Project 2 - SchedSim: CPU Scheduling Simulator
-# CmpE 230, Systems Programming, Spring 2026
-#
-# Stage 4: Minimal buildable skeleton.
-# Confirms: _start entry point, direct syscall I/O, no-libc build.
-# No scheduling algorithm, tokenizer, or parser is implemented yet.
-
-# ──────────────────────────────────────────────────────────────────────────────
     .section .rodata
 
 newline_char:
-    .byte   '\n'
+    .byte   0x0a
 
-# ──────────────────────────────────────────────────────────────────────────────
     .section .bss
 
     .balign 8
 input_buf:
-    .space  4096            # one full input line from stdin (well within spec)
+    .space  4096
 
     .balign 8
 output_buf:
-    .space  1025            # scheduling result: <=1024 output chars + newline
+    .space  1025
 
-# ──────────────────────────────────────────────────────────────────────────────
+    .balign 8
+tok_ptr:
+    .space  8
+
+    .balign 8
+input_end:
+    .space  8
+
     .section .text
     .global _start
 
-# Program entry point.
-# Current behavior (skeleton): read one line from stdin, write a single
-# newline to stdout, exit 0.  All scheduling work is added in later stages.
 _start:
-    # ── read one input line from stdin ───────────────────────────────────────
-    movq    $0,                  %rax    # syscall nr: read
-    movq    $0,                  %rdi    # fd: stdin
-    leaq    input_buf(%rip),     %rsi    # destination buffer
-    movq    $4096,               %rdx    # max bytes to read
-    syscall
-    # rax = bytes read on success, negative on error (ignored in skeleton)
-
-    # ── TODO stage 5: tokenize input_buf ─────────────────────────────────────
-    # ── TODO stage 6: parse process descriptors ───────────────────────────────
-    # ── TODO stage 7-9: dispatch algorithm, fill output_buf ──────────────────
-
-    # ── write placeholder output to stdout ───────────────────────────────────
-    # Replaced in later stages with the real output_buf write.
-    movq    $1,                  %rax    # syscall nr: write
-    movq    $1,                  %rdi    # fd: stdout
-    leaq    newline_char(%rip),  %rsi    # single newline byte
-    movq    $1,                  %rdx    # length: 1 byte
+    movq    $0,                  %rax
+    movq    $0,                  %rdi
+    leaq    input_buf(%rip),     %rsi
+    movq    $4096,               %rdx
     syscall
 
-    # ── exit cleanly ─────────────────────────────────────────────────────────
-    movq    $60,                 %rax    # syscall nr: exit
-    movq    $0,                  %rdi    # exit code: 0
+    movq    %rax,                %r8
+    leaq    input_buf(%rip),     %rcx
+    leaq    tok_ptr(%rip),       %rdx
+    movq    %rcx,                (%rdx)
+    addq    %r8,                 %rcx
+    leaq    input_end(%rip),     %rdx
+    movq    %rcx,                (%rdx)
+
+    movq    $1,                  %rax
+    movq    $1,                  %rdi
+    leaq    newline_char(%rip),  %rsi
+    movq    $1,                  %rdx
     syscall
+
+    movq    $60,                 %rax
+    movq    $0,                  %rdi
+    syscall
+
+
+skip_spaces:
+.Lss_loop:
+    movb    (%rdi),              %al
+    cmpb    $0x20,               %al
+    jne     .Lss_done
+    incq    %rdi
+    jmp     .Lss_loop
+.Lss_done:
+    movq    %rdi,                %rax
+    ret
+
+
+next_token:
+    pushq   %rbx
+    leaq    tok_ptr(%rip),       %rcx
+    movq    (%rcx),              %rdi
+    call    skip_spaces
+    movq    %rax,                %rdi
+    leaq    input_end(%rip),     %rcx
+    movq    (%rcx),              %rbx
+    cmpq    %rbx,                %rdi
+    jge     .Lnt_eof
+    movb    (%rdi),              %al
+    testb   %al,                 %al
+    jz      .Lnt_eof
+    cmpb    $0x0a,               %al
+    je      .Lnt_eof
+    cmpb    $0x0d,               %al
+    je      .Lnt_eof
+    movq    %rdi,                %rax
+    movq    %rdi,                %rcx
+.Lnt_scan:
+    cmpq    %rbx,                %rcx
+    jge     .Lnt_scan_done
+    movb    (%rcx),              %dl
+    testb   %dl,                 %dl
+    jz      .Lnt_scan_done
+    cmpb    $0x0a,               %dl
+    je      .Lnt_scan_done
+    cmpb    $0x0d,               %dl
+    je      .Lnt_scan_done
+    cmpb    $0x20,               %dl
+    je      .Lnt_scan_done
+    incq    %rcx
+    jmp     .Lnt_scan
+.Lnt_scan_done:
+    movq    %rcx,                %rdx
+    subq    %rax,                %rdx
+    leaq    tok_ptr(%rip),       %rdi
+    movq    %rcx,                (%rdi)
+    popq    %rbx
+    ret
+.Lnt_eof:
+    xorq    %rax,                %rax
+    xorq    %rdx,                %rdx
+    leaq    tok_ptr(%rip),       %rcx
+    movq    %rdi,                (%rcx)
+    popq    %rbx
+    ret
+
+
+token_equals:
+    movq    %rdi,                %r8
+    movq    %rdx,                %r9
+    movq    %rsi,                %rcx
+.Lte_loop:
+    testq   %rcx,                %rcx
+    jz      .Lte_check_null
+    movb    (%r8),               %al
+    movb    (%r9),               %dl
+    testb   %dl,                 %dl
+    jz      .Lte_not_equal
+    cmpb    %dl,                 %al
+    jne     .Lte_not_equal
+    incq    %r8
+    incq    %r9
+    decq    %rcx
+    jmp     .Lte_loop
+.Lte_check_null:
+    movb    (%r9),               %dl
+    testb   %dl,                 %dl
+    jz      .Lte_equal
+.Lte_not_equal:
+    xorq    %rax,                %rax
+    ret
+.Lte_equal:
+    movq    $1,                  %rax
+    ret
+
+
+parse_uint:
+    xorq    %rax,                %rax
+    movq    %rdi,                %rcx
+    movq    %rsi,                %rdx
+.Lpu_loop:
+    testq   %rdx,                %rdx
+    jz      .Lpu_done
+    movzbl  (%rcx),              %r8d
+    subl    $48,                 %r8d
+    imulq   $10,                 %rax,    %rax
+    addq    %r8,                 %rax
+    incq    %rcx
+    decq    %rdx
+    jmp     .Lpu_loop
+.Lpu_done:
+    ret
+
+
+find_dash:
+    movq    %rdi,                %rcx
+    movq    %rsi,                %rdx
+.Lfd_loop:
+    testq   %rdx,                %rdx
+    jz      .Lfd_notfound
+    movb    (%rcx),              %al
+    cmpb    $0x2d,               %al
+    je      .Lfd_found
+    incq    %rcx
+    decq    %rdx
+    jmp     .Lfd_loop
+.Lfd_found:
+    movq    %rcx,                %rax
+    ret
+.Lfd_notfound:
+    xorq    %rax,                %rax
+    ret
