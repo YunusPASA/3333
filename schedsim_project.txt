@@ -1,0 +1,422 @@
+Full Extraction of 01.pdf
+Source title: Project 2 - SchedSim
+
+============================================================
+PAGE 1
+============================================================
+Project 2 - SchedSim
+CmpE 230, Systems Programming, Spring 2026
+
+Instructor: Can Ozturan
+TA: Gokce Uludogan
+SA: Mert Oziistiin
+
+Deadline: May 6, 2026 23:59:00 (Strict)
+
+1 Project Overview
+
+In this project, you will implement a GNU assembly language program that simulates CPU process scheduling. The scheduler must support five different scheduling algorithms, each with its own rules for determining which process occupies the CPU at any given clock cycle.
+
+CPU scheduling is a fundamental operating system concept that determines the order in which processes access the CPU. Different scheduling strategies trade off between fairness, throughput, response time, and complexity. In this simulation:
+
+- Each scheduling algorithm reads a list of processes with their associated parameters.
+- The scheduler produces a clock-by-clock execution trace, showing which process runs (or if the CPU is idle) at each time unit.
+- Tie-breaking rules ensure deterministic output.
+
+2 Input and Output Format
+
+2.1 Input Format
+
+Your program will process a single input line. The first token identifies the scheduling algorithm, followed by process descriptors and (for Round Robin) an optional quantum value.
+
+<Algorithm> <Process1> <Process2> ... [<Quantum>]
+
+Each process descriptor is a hyphen-separated string whose fields depend on the algorithm. The exact format for each algorithm is described in Section 3.
+
+
+============================================================
+PAGE 2
+============================================================
+2.2 Output Format
+
+Your output should be a single line representing the CPU execution timeline from time 0 until all processes have completed. Each character in the output corresponds to one clock cycle:
+
+- A process ID letter (e.g., A, B) indicates the process running during that cycle.
+- X indicates an idle CPU cycle (no process available to run).
+
+<execution timeline string>
+
+For example, XAAABB means the CPU was idle for 1 cycle, then process A ran for 3 cycles, then process B ran for 2 cycles.
+
+3 Scheduling Algorithms
+
+3.1 First Come First Serve (FCFS)
+
+Processes are executed in the order of their arrival time. Once a process starts, it runs to completion without preemption.
+
+Input format:
+
+FCFS <ID>-<BurstTime>-<ArrivalTime> ...
+
+- ID: single uppercase letter identifying the process.
+- BurstTime: total CPU time units the process requires.
+- ArrivalTime: clock cycle at which the process becomes available.
+
+Example:
+
+FCFS A-3-1 B-2-2
+
+Output:
+
+XAAABB
+
+Explanation: The CPU is idle at cycle 0 (no process has arrived). Process A arrives at cycle 1 and runs for 3 cycles. Process B arrives at cycle 2 but must wait until A finishes, then runs for 2 cycles.
+
+Tie-breaking: If two processes arrive at the same time, the one appearing first in the input is scheduled first.
+
+
+============================================================
+PAGE 3
+============================================================
+3.2 Shortest Job First (SJF)
+
+All processes are assumed to arrive at time 0. The process with the shortest burst time is selected first. SJF is non-preemptive: once started, a process runs to completion.
+
+Input format:
+
+SJF <ID>-<BurstTime> ...
+
+Example:
+
+SJF A-2 B-1 C-4
+
+Output:
+
+BAACCCC
+
+Explanation: B (burst 1) runs first, then A (burst 2), then C (burst 4).
+
+Tie-breaking: If two processes have the same burst time, the one appearing first in the input is scheduled first.
+
+3.3 Shortest Remaining Time First (SRTF)
+
+SRTF is the preemptive version of SJF. At every clock cycle, the scheduler picks the ready process with the smallest remaining burst time. A running process is preempted if a newly arrived process has a shorter remaining time.
+
+Input format:
+
+SRTF <ID>-<BurstTime>-<ArrivalTime> ...
+
+Example:
+
+SRTF A-4-0 B-2-1 C-5-0
+
+Output:
+
+ABBAAACCCCC
+
+Explanation: At cycle 0, only A (remaining: 4) and C (remaining: 5) are available; A runs. At cycle 1, B arrives (remaining: 2), preempting A (remaining: 3). B runs for 2 cycles and completes. A resumes and finishes its remaining 3 cycles. Then C runs for 5 cycles.
+
+Tie-breaking: If two processes have equal remaining time, the one appearing first in the input is scheduled first.
+
+3.4 Priority First (PF)
+
+Processes are scheduled based on a priority value. A lower priority number indicates higher priority. PF is preemptive: a higher-priority process that arrives will immediately
+
+
+============================================================
+PAGE 4
+============================================================
+preempt the currently running process.
+
+Input format:
+
+PF <ID>-<BurstTime>-<ArrivalTime>-<Priority> ...
+
+- Priority: a non-negative integer. Lower value = higher priority.
+
+Example:
+
+PF A-2-0-2 B-5-1-1
+
+Output:
+
+ABBBBBA
+
+Explanation: At cycle 0, only A (priority 2) is available and starts running. At cycle 1, B (priority 1) arrives; since B has higher priority, it preempts A. B runs for 5 cycles. After B finishes, A completes its remaining 1 cycle.
+
+Tie-breaking rules (applied in order):
+
+1. If two processes share the same priority, choose the one with the shorter remaining time (SRTF behavior).
+2. If both priority and remaining time are equal, choose the one appearing first in the input.
+
+3.5 Round Robin (RR)
+
+Processes are executed in a cyclic order. Each process may run for at most Q consecutive cycles (one quantum) before being preempted and moved to the back of the ready queue. All processes arrive at time 0 and are enqueued in input order.
+
+Input format:
+
+RR <ID>-<BurstTime> ... <Quantum>
+
+- ID: single uppercase letter identifying the process.
+- BurstTime: total CPU cycles the process requires.
+- Quantum: a positive integer Q given as the last token in the input line.
+
+Scheduling rules:
+
+1. At time 0, enqueue all processes in the order they appear in the input.
+2. Dequeue the front process and allocate a full slot of Q cycles.
+
+
+============================================================
+PAGE 5
+============================================================
+3. Output the process ID for each cycle it actively runs (up to its remaining time).
+4. If the process finishes before the quantum expires, output X for each remaining cycle in that quantum slot. The CPU does not switch to the next process mid-quantum.
+5. If the process still has remaining time after the full quantum, re-enqueue it at the back of the ready queue.
+6. If the process finishes within its quantum (with or without idle padding), discard it.
+7. If the queue is ever empty while cycles remain, output X for each idle cycle.
+8. Repeat from step 2 until all processes are complete.
+
+Example:
+
+RR A-3 B-4 C-2 2
+
+Output:
+
+AABBCCAXBB
+
+Step-by-step trace (quantum Q = 2):
+
+Turn | Process | Remaining Before | Cycles Run | Idle Padding | Output | Remaining After
+1    | A       | 3                | 2          | 0            | AA     | 1 (re-enqueued)
+2    | B       | 4                | 2          | 0            | BB     | 2 (re-enqueued)
+3    | C       | 2                | 2          | 0            | CC     | 0 (done)
+4    | A       | 1                | 1          | 1            | AX     | 0 (done)
+5    | B       | 2                | 2          | 0            | BB     | 0 (done)
+
+Explanation: At turn 4, process A only needs 1 cycle but holds the full quantum of 2. It outputs A for its active cycle and X for the unused remainder. The next process B only starts after the full quantum slot ends.
+
+Tie-breaking: When multiple processes are re-enqueued at the same time step, they join the back of the queue in their original input order.
+
+
+============================================================
+PAGE 6
+============================================================
+4 Summary Table
+
+Algorithm | Preemptive    | Arrival Time       | Selection Criterion
+FCFS      | No            | Yes (per process)  | Earliest arrival time
+SJF       | No            | All at 0           | Shortest burst time
+SRTF      | Yes           | Yes (per process)  | Shortest remaining time
+PF        | Yes           | Yes (per process)  | Lowest priority number
+RR        | Yes (quantum) | All at 0           | Cyclic, fixed quantum
+
+5 Execution Instructions
+
+Compile and run your assembly program with the following commands:
+
+$ make
+$ ./schedsim
+FCFS A-3-1 B-2-2
+XAAABB
+
+Your Makefile must produce an executable named schedsim in the project root.
+
+6 Example Testcases
+
+6.1 Test Case 1: FCFS with Tie-Breaking
+
+FCFS T-3-1 B-2-2 A-3-1
+
+XTTTAAABB
+
+6.2 Test Case 2: SJF Ordering
+
+SJF M-2 L-1 K-4 J-2
+
+LMMJJKKKK
+
+6.3 Test Case 3: SRTF Preemption with Tie-Breaking
+
+SRTF A-2-2 B-4-0 C-3-4
+
+BBAABBCCC
+
+
+============================================================
+PAGE 7
+============================================================
+6.4 Test Case 4: Priority with Tie-Breaking
+
+PF A-4-0-2 B-5-1-1 C-2-1-2
+
+ABBBBBCAAA
+
+6.5 Test Case 5: Round Robin
+
+RR V-7 U-5 T-8 3
+
+VVVUUUTTTVVVUUXXTTTVXXTTX
+
+7 Assumptions
+
+- Input tokens are strictly separated by a single space.
+- The number of processes will not exceed 10.
+- Process IDs are unique single uppercase letters.
+- Burst times and arrival times are non-negative integers.
+- Priority values are non-negative integers (PF only).
+- The quantum (RR only) is a positive integer and is always the last token.
+- The input is otherwise well-formed; no invalid tokens will appear.
+- If two or more processes have equal selection criteria, apply tie-breaking rules as described per algorithm.
+- Output is a single line with no trailing spaces or newline beyond the terminating newline character.
+- The output line will not exceed 1024 characters.
+
+
+============================================================
+PAGE 8
+============================================================
+Submission
+
+You may submit this project individually or as a group of two.
+
+Environment and Build Requirements
+
+Important: Testing Environment
+
+Your project will be tested automatically on the provided Docker image: cmpe230-spring26
+You are responsible for ensuring that your code compiles and runs correctly in this environment.
+
+Your project must include a Makefile with the following properties:
+
+- Running make must assemble and link your program using:
+  as and ld
+- The use of gcc for compilation or linking is not allowed.
+- Your program must define _start as the entry point and must not rely on any C standard library functions.
+- The output executable must be named:
+  schedsim
+- Running make must only build the executable and must NOT execute the program.
+
+$ make
+$ ./schedsim
+
+Program Requirements
+
+Your program must:
+
+- Read input from stdin
+- Write output to stdout
+- Produce exactly one output line per input
+- Follow the specified format strictly
+
+Strict Output Policy
+
+Extra spaces, missing characters, or incorrect formatting will cause test failures. Output comparison is exact string matching.
+
+
+============================================================
+PAGE 9
+============================================================
+Project Structure and Packaging
+
+Your submission must be a single ZIP file.
+
+- Only .zip format is accepted
+- Other formats (.rar, .7z, etc.) will NOT be graded
+
+The ZIP file must contain:
+
+- Makefile
+- All .s (assembly) source files
+- report.pdf
+
+Do NOT Include:
+
+- Compiled executables
+- Object files
+- System-generated folders (e.g., __MACOSX, hidden files)
+
+Folder Naming Convention
+
+The root folder must be named as:
+
+- Individual: studentID
+- Group of two: id1_id2
+
+Examples:
+
+2020400144/
+2020400144_2020400099/
+
+The ZIP file must match this name:
+
+2020400144.zip
+2020400144_2020400099.zip
+
+
+============================================================
+PAGE 10
+============================================================
+GitHub Classroom Submission
+
+You must also submit your project through GitHub Classroom:
+
+- Join using: Assignment Link
+- Create or join a team (if working in pairs)
+- Ensure your repository builds correctly
+
+Mandatory Dual Submission
+
+Submission is only considered complete if BOTH are submitted:
+
+- Moodle ZIP upload
+- GitHub Classroom repository
+
+A single Moodle submission per group is sufficient.
+
+Late Submission Policy
+
+Hours Late | Penalty
+0 < h <= 24 | 25%
+24 < h <= 48 | 50%
+h > 48 | 100%
+
+Grading
+
+The following weighting is used:
+
+Component                               | Weight
+Code comments and readability           | 10%
+Written report / project documentation  | 20%
+Quiz (PS hours)                         | 10%
+Implementation and automated tests      | 60%
+
+Code Comments and Readability (10%):
+
+- 4% for sensible decomposition into logical blocks, readable control flow, and meaningful labels/names.
+- 3% for comments that explain non-obvious parsing logic, scheduling decisions, and important edge cases.
+- 3% for overall cleanliness: no misleading comments, no large dead-code blocks, and no debug prints left in the final submission.
+
+
+============================================================
+PAGE 11
+============================================================
+Documentation / Report (20%):
+
+- 4% for clearly describing the overall design of your scheduler and execution flow.
+- 4% for explaining how each scheduling algorithm is implemented.
+- 4% for discussing data handling and memory/register usage.
+- 4% for describing debugging and testing: sample runs, important edge cases, errors encountered, and how you solved them.
+- 4% for clarity, organization, and formatting.
+
+Use the provided project report template present in your assignment repository as the formatting baseline.
+
+Quiz (10%):
+
+- A multiple-choice quiz will be held during PS hours on May 11.
+- This component evaluates whether you understand the logic behind your implementation.
+
+Implementation and Tests (60%):
+
+Your project must follow this specification and pass automated tests. This component primarily measures correctness, robustness on edge cases, and compliance with the required input/output behavior. Scoring on the visible/hidden tests is line-based:
+
+score = Total Correct Answered Lines / Total Lines
