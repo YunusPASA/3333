@@ -1,7 +1,31 @@
+    .equ    ALGO_FCFS,      0
+    .equ    ALGO_SJF,       1
+    .equ    ALGO_SRTF,      2
+    .equ    ALGO_PF,        3
+    .equ    ALGO_RR,        4
+
+    .equ    PROC_ID,        0
+    .equ    PROC_BURST,     8
+    .equ    PROC_ARRIVAL,   16
+    .equ    PROC_PRIORITY,  24
+    .equ    PROC_ORDER,     32
+    .equ    PROC_SIZE,      40
+
     .section .rodata
 
 newline_char:
     .byte   0x0a
+
+str_fcfs:
+    .asciz  "FCFS"
+str_sjf:
+    .asciz  "SJF"
+str_srtf:
+    .asciz  "SRTF"
+str_pf:
+    .asciz  "PF"
+str_rr:
+    .asciz  "RR"
 
     .section .bss
 
@@ -21,6 +45,22 @@ tok_ptr:
 input_end:
     .space  8
 
+    .balign 8
+algo_id:
+    .space  8
+
+    .balign 8
+proc_count:
+    .space  8
+
+    .balign 8
+rr_quantum:
+    .space  8
+
+    .balign 8
+proc_array:
+    .space  400
+
     .section .text
     .global _start
 
@@ -38,6 +78,8 @@ _start:
     addq    %r8,                 %rcx
     leaq    input_end(%rip),     %rdx
     movq    %rcx,                (%rdx)
+
+    call    parse_input
 
     movq    $1,                  %rax
     movq    $1,                  %rdi
@@ -175,4 +217,193 @@ find_dash:
     ret
 .Lfd_notfound:
     xorq    %rax,                %rax
+    ret
+
+
+extract_field:
+    movq    %rdi,                %rax
+    movq    %rdi,                %rcx
+    movq    %rsi,                %r8
+.Lef_loop:
+    testq   %r8,                 %r8
+    jz      .Lef_done
+    movb    (%rcx),              %dl
+    cmpb    $0x2d,               %dl
+    je      .Lef_done
+    incq    %rcx
+    decq    %r8
+    jmp     .Lef_loop
+.Lef_done:
+    movq    %rcx,                %rdx
+    subq    %rax,                %rdx
+    ret
+
+
+identify_algo:
+    pushq   %rbx
+    pushq   %r12
+    movq    %rdi,                %rbx
+    movq    %rsi,                %r12
+    leaq    str_fcfs(%rip),      %rdx
+    call    token_equals
+    testq   %rax,                %rax
+    jz      .Lia_sjf
+    movq    $ALGO_FCFS,          %rax
+    jmp     .Lia_store
+.Lia_sjf:
+    movq    %rbx,                %rdi
+    movq    %r12,                %rsi
+    leaq    str_sjf(%rip),       %rdx
+    call    token_equals
+    testq   %rax,                %rax
+    jz      .Lia_srtf
+    movq    $ALGO_SJF,           %rax
+    jmp     .Lia_store
+.Lia_srtf:
+    movq    %rbx,                %rdi
+    movq    %r12,                %rsi
+    leaq    str_srtf(%rip),      %rdx
+    call    token_equals
+    testq   %rax,                %rax
+    jz      .Lia_pf
+    movq    $ALGO_SRTF,          %rax
+    jmp     .Lia_store
+.Lia_pf:
+    movq    %rbx,                %rdi
+    movq    %r12,                %rsi
+    leaq    str_pf(%rip),        %rdx
+    call    token_equals
+    testq   %rax,                %rax
+    jz      .Lia_rr
+    movq    $ALGO_PF,            %rax
+    jmp     .Lia_store
+.Lia_rr:
+    movq    $ALGO_RR,            %rax
+.Lia_store:
+    leaq    algo_id(%rip),       %rcx
+    movq    %rax,                (%rcx)
+    popq    %r12
+    popq    %rbx
+    ret
+
+
+parse_proc:
+    pushq   %rbx
+    pushq   %r12
+    pushq   %r13
+    pushq   %r14
+    pushq   %r15
+    movq    %rdi,                %rbx
+    movq    %rsi,                %r12
+    movq    %rdx,                %r13
+    leaq    proc_count(%rip),    %rcx
+    movq    (%rcx),              %r14
+    imulq   $PROC_SIZE,          %r14,    %r15
+    leaq    proc_array(%rip),    %rcx
+    addq    %rcx,                %r15
+    movq    %rbx,                %rdi
+    movq    %r12,                %rsi
+    call    extract_field
+    movb    (%rax),              %cl
+    movb    %cl,                 PROC_ID(%r15)
+    addq    %rdx,                %rbx
+    subq    %rdx,                %r12
+    incq    %rbx
+    decq    %r12
+    movq    %rbx,                %rdi
+    movq    %r12,                %rsi
+    call    extract_field
+    movq    %rax,                %rdi
+    movq    %rdx,                %rsi
+    addq    %rdx,                %rbx
+    subq    %rdx,                %r12
+    call    parse_uint
+    movq    %rax,                PROC_BURST(%r15)
+    cmpq    $ALGO_FCFS,          %r13
+    je      .Lpp_arrival
+    cmpq    $ALGO_SRTF,          %r13
+    je      .Lpp_arrival
+    cmpq    $ALGO_PF,            %r13
+    je      .Lpp_arrival
+    movq    $0,                  PROC_ARRIVAL(%r15)
+    movq    $0,                  PROC_PRIORITY(%r15)
+    jmp     .Lpp_finish
+.Lpp_arrival:
+    incq    %rbx
+    decq    %r12
+    movq    %rbx,                %rdi
+    movq    %r12,                %rsi
+    call    extract_field
+    movq    %rax,                %rdi
+    movq    %rdx,                %rsi
+    addq    %rdx,                %rbx
+    subq    %rdx,                %r12
+    call    parse_uint
+    movq    %rax,                PROC_ARRIVAL(%r15)
+    cmpq    $ALGO_PF,            %r13
+    jne     .Lpp_no_prio
+    incq    %rbx
+    decq    %r12
+    movq    %rbx,                %rdi
+    movq    %r12,                %rsi
+    call    extract_field
+    movq    %rax,                %rdi
+    movq    %rdx,                %rsi
+    call    parse_uint
+    movq    %rax,                PROC_PRIORITY(%r15)
+    jmp     .Lpp_finish
+.Lpp_no_prio:
+    movq    $0,                  PROC_PRIORITY(%r15)
+.Lpp_finish:
+    movq    %r14,                PROC_ORDER(%r15)
+    leaq    proc_count(%rip),    %rcx
+    incq    (%rcx)
+    popq    %r15
+    popq    %r14
+    popq    %r13
+    popq    %r12
+    popq    %rbx
+    ret
+
+
+parse_input:
+    pushq   %rbx
+    pushq   %r12
+    pushq   %r13
+    call    next_token
+    testq   %rdx,                %rdx
+    jz      .Lpi_done
+    movq    %rax,                %rdi
+    movq    %rdx,                %rsi
+    call    identify_algo
+    movq    %rax,                %rbx
+.Lpi_loop:
+    call    next_token
+    testq   %rdx,                %rdx
+    jz      .Lpi_done
+    movq    %rax,                %r12
+    movq    %rdx,                %r13
+    cmpq    $ALGO_RR,            %rbx
+    jne     .Lpi_proc
+    movq    %r12,                %rdi
+    movq    %r13,                %rsi
+    call    find_dash
+    testq   %rax,                %rax
+    jz      .Lpi_quantum
+.Lpi_proc:
+    movq    %r12,                %rdi
+    movq    %r13,                %rsi
+    movq    %rbx,                %rdx
+    call    parse_proc
+    jmp     .Lpi_loop
+.Lpi_quantum:
+    movq    %r12,                %rdi
+    movq    %r13,                %rsi
+    call    parse_uint
+    leaq    rr_quantum(%rip),    %rcx
+    movq    %rax,                (%rcx)
+.Lpi_done:
+    popq    %r13
+    popq    %r12
+    popq    %rbx
     ret
