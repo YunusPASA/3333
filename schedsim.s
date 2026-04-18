@@ -1,8 +1,10 @@
+# constant data
     .section .rodata
 
 newline_char:
     .byte   0x0a
 
+# global buffers and tokenizer state
     .section .bss
 
     .balign 8
@@ -21,9 +23,11 @@ tok_ptr:
 input_end:
     .space  8
 
+# code section and entry point
     .section .text
     .global _start
 
+# read stdin, initialize tokenizer bounds, write placeholder newline, exit
 _start:
     movq    $0,                  %rax
     movq    $0,                  %rdi
@@ -49,7 +53,7 @@ _start:
     movq    $0,                  %rdi
     syscall
 
-
+# advance a pointer past consecutive space characters
 skip_spaces:
 .Lss_loop:
     movb    (%rdi),              %al
@@ -61,7 +65,7 @@ skip_spaces:
     movq    %rdi,                %rax
     ret
 
-
+# return the next space-delimited token and its length, and update tok_ptr
 next_token:
     pushq   %rbx
     leaq    tok_ptr(%rip),       %rcx
@@ -110,7 +114,7 @@ next_token:
     popq    %rbx
     ret
 
-
+# compare a token against a null-terminated keyword of the same length
 token_equals:
     movq    %rdi,                %r8
     movq    %rdx,                %r9
@@ -139,7 +143,7 @@ token_equals:
     movq    $1,                  %rax
     ret
 
-
+# convert a digit-only substring to an integer value
 parse_uint:
     xorq    %rax,                %rax
     movq    %rdi,                %rcx
@@ -157,7 +161,7 @@ parse_uint:
 .Lpu_done:
     ret
 
-
+# find the first '-' character inside a bounded token
 find_dash:
     movq    %rdi,                %rcx
     movq    %rsi,                %rdx
