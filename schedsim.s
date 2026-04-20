@@ -1,8 +1,39 @@
+    .equ    MAX_PROC,       10
+
+    .equ    ALGO_FCFS,      0
+    .equ    ALGO_SJF,       1
+    .equ    ALGO_SRTF,      2
+    .equ    ALGO_PF,        3
+    .equ    ALGO_RR,        4
+
+    .equ    PROC_ID,        0
+    .equ    PROC_BURST,     8
+    .equ    PROC_ARRIVAL,   16
+    .equ    PROC_PRIORITY,  24
+    .equ    PROC_REMAIN,    32
+    .equ    PROC_ORDER,     40
+    .equ    PROC_SIZE,      48
+
 # constant data
     .section .rodata
 
 newline_char:
     .byte   0x0a
+
+str_fcfs:
+    .asciz  "FCFS"
+
+str_sjf:
+    .asciz  "SJF"
+
+str_srtf:
+    .asciz  "SRTF"
+
+str_pf:
+    .asciz  "PF"
+
+str_rr:
+    .asciz  "RR"
 
 # global buffers and tokenizer state
     .section .bss
@@ -23,6 +54,22 @@ tok_ptr:
 input_end:
     .space  8
 
+    .balign 8
+algo_id:
+    .space  8
+
+    .balign 8
+proc_count:
+    .space  8
+
+    .balign 8
+rr_quantum:
+    .space  8
+
+    .balign 8
+proc_array:
+    .space  MAX_PROC * PROC_SIZE
+
 # code section and entry point
     .section .text
     .global _start
@@ -42,6 +89,8 @@ _start:
     addq    %r8,                 %rcx
     leaq    input_end(%rip),     %rdx
     movq    %rcx,                (%rdx)
+
+    call    parse_input
 
     movq    $1,                  %rax
     movq    $1,                  %rdi
@@ -179,4 +228,28 @@ find_dash:
     ret
 .Lfd_notfound:
     xorq    %rax,                %rax
+    ret
+
+# extract one field from a descriptor
+extract_field:
+    ret
+
+# advance to the next field in a descriptor
+advance_field:
+    ret
+
+# store one qword into the current process slot
+store_proc_qword:
+    ret
+
+# identify the algorithm token
+identify_algo:
+    ret
+
+# parse one process descriptor
+parse_proc:
+    ret
+
+# parse the full input stream
+parse_input:
     ret
