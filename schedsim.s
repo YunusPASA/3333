@@ -123,8 +123,13 @@ _start:
     jmp     .Lstart_done
 .Lstart_sjf:
     cmpq    $ALGO_SJF,           %rax
-    jne     .Lstart_done
+    jne     .Lstart_srtf
     call    sched_sjf
+    jmp     .Lstart_done
+.Lstart_srtf:
+    cmpq    $ALGO_SRTF,          %rax
+    jne     .Lstart_done
+    call    sched_srtf
 .Lstart_done:
     call    timeline_finalize
     call    timeline_write
@@ -507,5 +512,85 @@ sched_sjf:
     popq    %rbx
     ret
 
+srtf_pick:
+    pushq   %rbx
+    pushq   %r12
+    pushq   %r13
+    pushq   %r14
+    movq    %rdi,                %r14
+    movq    $-1,                 %rbx
+    movq    $-1,                 %r12
+    movq    $-1,                 %r13
+    leaq    proc_count(%rip),    %rcx
+    movq    (%rcx),              %rcx
+    xorq    %rdx,                %rdx
+    leaq    proc_array(%rip),    %r8
+.Lsrp_loop:
+    cmpq    %rcx,                %rdx
+    jge     .Lsrp_done
+    imulq   $PROC_SIZE,          %rdx,    %r9
+    movq    PROC_DONE(%r8,%r9,1),%rax
+    testq   %rax,                %rax
+    jnz     .Lsrp_next
+    movq    PROC_ARRIVAL(%r8,%r9,1),%rax
+    cmpq    %r14,                %rax
+    ja      .Lsrp_next
+    movq    PROC_REMAIN(%r8,%r9,1),%rax
+    cmpq    %r12,                %rax
+    jb      .Lsrp_update
+    ja      .Lsrp_next
+    movq    PROC_ORDER(%r8,%r9,1),%rax
+    cmpq    %r13,                %rax
+    jae     .Lsrp_next
+    movq    %rax,                %r13
+    movq    %rdx,                %rbx
+    jmp     .Lsrp_next
+.Lsrp_update:
+    movq    %rax,                %r12
+    movq    PROC_ORDER(%r8,%r9,1),%r13
+    movq    %rdx,                %rbx
+.Lsrp_next:
+    incq    %rdx
+    jmp     .Lsrp_loop
+.Lsrp_done:
+    movq    %rbx,                %rax
+    popq    %r14
+    popq    %r13
+    popq    %r12
+    popq    %rbx
+    ret
+
+
+sched_srtf:
+    pushq   %rbx
+    xorq    %rbx,                %rbx
+.Lsr_outer:
+    call    fcfs_all_done
+    testq   %rax,                %rax
+    jnz     .Lsr_end
+    movq    %rbx,                %rdi
+    call    srtf_pick
+    cmpq    $-1,                 %rax
+    je      .Lsr_idle
+    imulq   $PROC_SIZE,          %rax,    %rax
+    leaq    proc_array(%rip),    %rcx
+    addq    %rcx,                %rax
+    movzbl  PROC_ID(%rax),       %edi
+    pushq   %rax
+    call    timeline_append
+    popq    %rax
+    decq    PROC_REMAIN(%rax)
+    jnz     .Lsr_next
+    movq    $1,                  PROC_DONE(%rax)
+.Lsr_next:
+    incq    %rbx
+    jmp     .Lsr_outer
+.Lsr_idle:
+    call    timeline_append_idle
+    incq    %rbx
+    jmp     .Lsr_outer
+.Lsr_end:
+    popq    %rbx
+    ret
 
     #PAZAR BİTİYOR
