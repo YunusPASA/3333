@@ -62,6 +62,10 @@ rr_quantum:
 proc_array:
     .space  480
 
+    .balign 8
+out_len:
+    .space  8
+
     .section .text
     .global _start
 
@@ -80,13 +84,11 @@ _start:
     leaq    input_end(%rip),     %rdx
     movq    %rcx,                (%rdx)
 
+    call    timeline_init
     call    parse_input
 
-    movq    $1,                  %rax
-    movq    $1,                  %rdi
-    leaq    newline_char(%rip),  %rsi
-    movq    $1,                  %rdx
-    syscall
+    call    timeline_finalize
+    call    timeline_write
 
     movq    $60,                 %rax
     movq    $0,                  %rdi
@@ -408,4 +410,40 @@ parse_input:
     popq    %r13
     popq    %r12
     popq    %rbx
+    ret
+
+
+timeline_init:
+    leaq    out_len(%rip),       %rcx
+    movq    $0,                  (%rcx)
+    ret
+
+
+timeline_append:
+    leaq    out_len(%rip),       %rcx
+    movq    (%rcx),              %rax
+    leaq    output_buf(%rip),    %rdx
+    movb    %dil,                (%rdx,%rax,1)
+    incq    %rax
+    movq    %rax,                (%rcx)
+    ret
+
+
+timeline_append_idle:
+    movq    $0x58,               %rdi
+    jmp     timeline_append
+
+
+timeline_finalize:
+    movq    $0x0a,               %rdi
+    jmp     timeline_append
+
+
+timeline_write:
+    leaq    out_len(%rip),       %rcx
+    movq    (%rcx),              %rdx
+    movq    $1,                  %rax
+    movq    $1,                  %rdi
+    leaq    output_buf(%rip),    %rsi
+    syscall
     ret
