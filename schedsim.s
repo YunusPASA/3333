@@ -9,7 +9,8 @@
     .equ    PROC_ARRIVAL,   16
     .equ    PROC_PRIORITY,  24
     .equ    PROC_ORDER,     32
-    .equ    PROC_SIZE,      40
+    .equ    PROC_REMAIN,    40
+    .equ    PROC_SIZE,      48
 
     .section .rodata
 
@@ -59,7 +60,7 @@ rr_quantum:
 
     .balign 8
 proc_array:
-    .space  400
+    .space  480
 
     .section .text
     .global _start
@@ -319,6 +320,7 @@ parse_proc:
     subq    %rdx,                %r12
     call    parse_uint
     movq    %rax,                PROC_BURST(%r15)
+    movq    %rax,                PROC_REMAIN(%r15)
     cmpq    $ALGO_FCFS,          %r13
     je      .Lpp_arrival
     cmpq    $ALGO_SRTF,          %r13
