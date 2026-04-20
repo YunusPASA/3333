@@ -115,7 +115,7 @@ _start:
     call    timeline_init
     call    parse_input
 
-    leaq    algo_id(%rip),       %rcx
+      leaq    algo_id(%rip),       %rcx
     movq    (%rcx),              %rax
     cmpq    $ALGO_FCFS,          %rax
     jne     .Lstart_sjf
@@ -128,8 +128,13 @@ _start:
     jmp     .Lstart_done
 .Lstart_srtf:
     cmpq    $ALGO_SRTF,          %rax
-    jne     .Lstart_done
+    jne     .Lstart_pf
     call    sched_srtf
+    jmp     .Lstart_done
+.Lstart_pf:
+    cmpq    $ALGO_PF,            %rax
+    jne     .Lstart_done
+    call    sched_pf
 .Lstart_done:
     call    timeline_finalize
     call    timeline_write
@@ -592,5 +597,101 @@ sched_srtf:
 .Lsr_end:
     popq    %rbx
     ret
+
+
+pf_pick:
+    pushq   %rbx
+    pushq   %r12
+    pushq   %r13
+    pushq   %r14
+    pushq   %r15
+    movq    %rdi,                %r14
+    movq    $-1,                 %rbx
+    movq    $-1,                 %r12
+    movq    $-1,                 %r13
+    movq    $-1,                 %r15
+    leaq    proc_count(%rip),    %rcx
+    movq    (%rcx),              %rcx
+    xorq    %rdx,                %rdx
+    leaq    proc_array(%rip),    %r8
+.Lpfp_loop:
+    cmpq    %rcx,                %rdx
+    jge     .Lpfp_done
+    imulq   $PROC_SIZE,          %rdx,    %r9
+    movq    PROC_DONE(%r8,%r9,1),%rax
+    testq   %rax,                %rax
+    jnz     .Lpfp_next
+    movq    PROC_ARRIVAL(%r8,%r9,1),%rax
+    cmpq    %r14,                %rax
+    ja      .Lpfp_next
+    movq    PROC_PRIORITY(%r8,%r9,1),%rax
+    cmpq    %r12,                %rax
+    jb      .Lpfp_update
+    ja      .Lpfp_next
+    movq    PROC_REMAIN(%r8,%r9,1),%rax
+    cmpq    %r13,                %rax
+    jb      .Lpfp_update_remain
+    ja      .Lpfp_next
+    movq    PROC_ORDER(%r8,%r9,1),%rax
+    cmpq    %r15,                %rax
+    jae     .Lpfp_next
+    movq    %rax,                %r15
+    movq    %rdx,                %rbx
+    jmp     .Lpfp_next
+.Lpfp_update_remain:
+    movq    %rax,                %r13
+    movq    PROC_ORDER(%r8,%r9,1),%r15
+    movq    %rdx,                %rbx
+    jmp     .Lpfp_next
+.Lpfp_update:
+    movq    %rax,                %r12
+    movq    PROC_REMAIN(%r8,%r9,1),%r13
+    movq    PROC_ORDER(%r8,%r9,1),%r15
+    movq    %rdx,                %rbx
+.Lpfp_next:
+    incq    %rdx
+    jmp     .Lpfp_loop
+.Lpfp_done:
+    movq    %rbx,                %rax
+    popq    %r15
+    popq    %r14
+    popq    %r13
+    popq    %r12
+    popq    %rbx
+    ret
+
+
+sched_pf:
+    pushq   %rbx
+    xorq    %rbx,                %rbx
+.Lpf_outer:
+    call    fcfs_all_done
+    testq   %rax,                %rax
+    jnz     .Lpf_end
+    movq    %rbx,                %rdi
+    call    pf_pick
+    cmpq    $-1,                 %rax
+    je      .Lpf_idle
+    imulq   $PROC_SIZE,          %rax,    %rax
+    leaq    proc_array(%rip),    %rcx
+    addq    %rcx,                %rax
+    movzbl  PROC_ID(%rax),       %edi
+    pushq   %rax
+    call    timeline_append
+    popq    %rax
+    decq    PROC_REMAIN(%rax)
+    jnz     .Lpf_next
+    movq    $1,                  PROC_DONE(%rax)
+.Lpf_next:
+    incq    %rbx
+    jmp     .Lpf_outer
+.Lpf_idle:
+    call    timeline_append_idle
+    incq    %rbx
+    jmp     .Lpf_outer
+.Lpf_end:
+    popq    %rbx
+    ret
+
 
     #PAZAR BİTİYOR
