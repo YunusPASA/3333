@@ -1,5 +1,3 @@
-   #PAZARTESİ BAŞLIYOR
-   
     .equ    MAX_PROC,       10
 
     .equ    ALGO_FCFS,      0
@@ -17,7 +15,6 @@
     .equ    PROC_DONE,      48
     .equ    PROC_SIZE,      56
 
-# constant data
     .section .rodata
 
 newline_char:
@@ -38,7 +35,6 @@ str_pf:
 str_rr:
     .asciz  "RR"
 
-# global buffers and tokenizer state
     .section .bss
 
     .balign 8
@@ -73,30 +69,29 @@ rr_quantum:
 proc_array:
     .space  MAX_PROC * PROC_SIZE
 
-# code section and entry point
-    .section .text
-    .global _start
-
-proc_array:
-    .space  MAX_PROC * PROC_SIZE
-
     .balign 8
 out_len:
     .space  8
 
-proc_array:
-    .space  560
+    .balign 8
+rr_queue:
+    .space  80
 
-    .equ    PROC_DONE,      48
-    .equ    PROC_SIZE,      56
+    .balign 8
+rr_head:
+    .space  8
 
+    .balign 8
+rr_tail:
+    .space  8
 
-    #PAZARTESİ BİTİYOR
+    .balign 8
+rr_size:
+    .space  8
 
+    .section .text
+    .global _start
 
-    #CUMARTESİ BAŞLIYOR
-
-# read stdin, initialize tokenizer bounds, write placeholder newline, exit
 _start:
     movq    $0,                  %rax
     movq    $0,                  %rdi
@@ -115,7 +110,7 @@ _start:
     call    timeline_init
     call    parse_input
 
-      leaq    algo_id(%rip),       %rcx
+    leaq    algo_id(%rip),       %rcx
     movq    (%rcx),              %rax
     cmpq    $ALGO_FCFS,          %rax
     jne     .Lstart_sjf
@@ -133,8 +128,13 @@ _start:
     jmp     .Lstart_done
 .Lstart_pf:
     cmpq    $ALGO_PF,            %rax
-    jne     .Lstart_done
+    jne     .Lstart_rr
     call    sched_pf
+    jmp     .Lstart_done
+.Lstart_rr:
+    cmpq    $ALGO_RR,            %rax
+    jne     .Lstart_done
+    call    sched_rr
 .Lstart_done:
     call    timeline_finalize
     call    timeline_write
@@ -143,8 +143,6 @@ _start:
     movq    $0,                  %rdi
     syscall
 
-
-# advance a pointer past consecutive space characters
 skip_spaces:
 .Lss_loop:
     movb    (%rdi),              %al
@@ -156,7 +154,6 @@ skip_spaces:
     movq    %rdi,                %rax
     ret
 
-# return the next space-delimited token and its length, and update tok_ptr
 next_token:
     pushq   %rbx
     leaq    tok_ptr(%rip),       %rcx
@@ -205,7 +202,6 @@ next_token:
     popq    %rbx
     ret
 
-# compare a token against a null-terminated keyword of the same length
 token_equals:
     movq    %rdi,                %r8
     movq    %rdx,                %r9
@@ -234,7 +230,6 @@ token_equals:
     movq    $1,                  %rax
     ret
 
-# convert a digit-only substring to an integer value
 parse_uint:
     xorq    %rax,                %rax
     movq    %rdi,                %rcx
@@ -252,7 +247,6 @@ parse_uint:
 .Lpu_done:
     ret
 
-# find the first '-' character inside a bounded token
 find_dash:
     movq    %rdi,                %rcx
     movq    %rsi,                %rdx
@@ -272,43 +266,147 @@ find_dash:
     xorq    %rax,                %rax
     ret
 
-    #CUMARTESİ BİTİYOR
-
-
-    #PAZAR BAŞLIYOR
-
-# extract one field from a descriptor
 extract_field:
     ret
 
-# advance to the next field in a descriptor
 advance_field:
     ret
 
-# store one qword into the current process slot
 store_proc_qword:
     ret
 
-# identify the algorithm token
 identify_algo:
     ret
 
-# parse one process descriptor
 parse_proc:
     ret
 
-# parse the full input stream
 parse_input:
     ret
 
-movq    %rax,                PROC_BURST(%r15)
-movq    %rax,                PROC_REMAIN(%r15)
+rr_enqueue:
+    leaq    rr_tail(%rip),       %rcx
+    movq    (%rcx),              %rax
+    leaq    rr_queue(%rip),      %rdx
+    movq    %rdi,                (%rdx,%rax,8)
+    incq    %rax
+    cmpq    $10,                 %rax
+    jb      .Lren_no_wrap
+    xorq    %rax,                %rax
+.Lren_no_wrap:
+    leaq    rr_tail(%rip),       %rcx
+    movq    %rax,                (%rcx)
+    leaq    rr_size(%rip),       %rcx
+    incq    (%rcx)
+    ret
+
+rr_dequeue:
+    leaq    rr_head(%rip),       %rcx
+    movq    (%rcx),              %rax
+    leaq    rr_queue(%rip),      %rdx
+    movq    (%rdx,%rax,8),       %rdx
+    incq    %rax
+    cmpq    $10,                 %rax
+    jb      .Lrde_no_wrap
+    xorq    %rax,                %rax
+.Lrde_no_wrap:
+    leaq    rr_head(%rip),       %rcx
+    movq    %rax,                (%rcx)
+    leaq    rr_size(%rip),       %rcx
+    decq    (%rcx)
+    movq    %rdx,                %rax
+    ret
+
+sched_rr:
+    pushq   %rbx
+    pushq   %r12
+    pushq   %r13
+    pushq   %r14
+    pushq   %r15
+
+    leaq    rr_head(%rip),       %rcx
+    movq    $0,                  (%rcx)
+    leaq    rr_tail(%rip),       %rcx
+    movq    $0,                  (%rcx)
+    leaq    rr_size(%rip),       %rcx
+    movq    $0,                  (%rcx)
+
+    xorq    %rbx,                %rbx
+.Lrr_init:
+    leaq    proc_count(%rip),    %rcx
+    movq    (%rcx),              %rcx
+    cmpq    %rcx,                %rbx
+    jge     .Lrr_main
+    movq    %rbx,                %rdi
+    call    rr_enqueue
+    incq    %rbx
+    jmp     .Lrr_init
+
+.Lrr_main:
+    leaq    rr_size(%rip),       %rcx
+    movq    (%rcx),              %rcx
+    testq   %rcx,                %rcx
+    jz      .Lrr_end
+
+    call    rr_dequeue
+    movq    %rax,                %rbx
+    imulq   $PROC_SIZE,          %rbx,    %r12
+    leaq    proc_array(%rip),    %rcx
+    addq    %rcx,                %r12
+
+    movzbl  PROC_ID(%r12),       %r13d
+
+    leaq    rr_quantum(%rip),    %rcx
+    movq    (%rcx),              %rax
+    movq    PROC_REMAIN(%r12),   %rcx
+    movq    %rax,                %r14
+    cmpq    %rax,                %rcx
+    jge     .Lrr_slots
+    movq    %rcx,                %r14
+.Lrr_slots:
+    leaq    rr_quantum(%rip),    %rcx
+    movq    (%rcx),              %r15
+    subq    %r14,                %r15
+
+.Lrr_active:
+    testq   %r14,                %r14
+    jz      .Lrr_active_done
+    movq    %r13,                %rdi
+    call    timeline_append
+    decq    PROC_REMAIN(%r12)
+    decq    %r14
+    jmp     .Lrr_active
+
+.Lrr_active_done:
+    movq    PROC_REMAIN(%r12),   %rax
+    testq   %rax,                %rax
+    jnz     .Lrr_reenqueue
+
+    movq    $1,                  PROC_DONE(%r12)
+.Lrr_pad:
+    testq   %r15,                %r15
+    jz      .Lrr_main
+    call    timeline_append_idle
+    decq    %r15
+    jmp     .Lrr_pad
+
+.Lrr_reenqueue:
+    movq    %rbx,                %rdi
+    call    rr_enqueue
+    jmp     .Lrr_main
+
+.Lrr_end:
+    popq    %r15
+    popq    %r14
+    popq    %r13
+    popq    %r12
+    popq    %rbx
+    ret
 
 timeline_init:
     leaq    out_len(%rip),       %rcx
     movq    $0,                  (%rcx)
     ret
-
 
 timeline_append:
     leaq    out_len(%rip),       %rcx
@@ -319,16 +417,13 @@ timeline_append:
     movq    %rax,                (%rcx)
     ret
 
-
 timeline_append_idle:
     movq    $0x58,               %rdi
     jmp     timeline_append
 
-
 timeline_finalize:
     movq    $0x0a,               %rdi
     jmp     timeline_append
-
 
 timeline_write:
     leaq    out_len(%rip),       %rcx
@@ -359,7 +454,6 @@ fcfs_all_done:
 .Lfad_no:
     xorq    %rax,                %rax
     ret
-
 
 fcfs_pick:
     pushq   %rbx
@@ -408,7 +502,6 @@ fcfs_pick:
     popq    %rbx
     ret
 
-
 sched_fcfs:
     pushq   %rbx
     xorq    %rbx,                %rbx
@@ -446,7 +539,7 @@ sched_fcfs:
     popq    %rbx
     ret
 
-    sjf_pick:
+sjf_pick:
     pushq   %rbx
     pushq   %r12
     pushq   %r13
@@ -487,7 +580,6 @@ sched_fcfs:
     popq    %r12
     popq    %rbx
     ret
-
 
 sched_sjf:
     pushq   %rbx
@@ -565,7 +657,6 @@ srtf_pick:
     popq    %rbx
     ret
 
-
 sched_srtf:
     pushq   %rbx
     xorq    %rbx,                %rbx
@@ -597,7 +688,6 @@ sched_srtf:
 .Lsr_end:
     popq    %rbx
     ret
-
 
 pf_pick:
     pushq   %rbx
@@ -660,7 +750,6 @@ pf_pick:
     popq    %rbx
     ret
 
-
 sched_pf:
     pushq   %rbx
     xorq    %rbx,                %rbx
@@ -692,6 +781,3 @@ sched_pf:
 .Lpf_end:
     popq    %rbx
     ret
-
-
-    #PAZAR BİTİYOR
