@@ -14,8 +14,9 @@
     .equ    PROC_PRIORITY,  24
     .equ    PROC_REMAIN,    32
     .equ    PROC_ORDER,     40
-    .equ    PROC_SIZE,      48
-
+    .equ    PROC_DONE,      48
+    .equ    PROC_SIZE,      56
+    
 # constant data
     .section .rodata
 
@@ -83,6 +84,13 @@ proc_array:
 out_len:
     .space  8
 
+proc_array:
+    .space  560
+
+    .equ    PROC_DONE,      48
+    .equ    PROC_SIZE,      56
+
+
     #PAZARTESİ BİTİYOR
 
 
@@ -107,6 +115,13 @@ _start:
     call    timeline_init
     call    parse_input
 
+    leaq    algo_id(%rip),       %rcx
+    movq    (%rcx),              %rax
+    cmpq    $ALGO_FCFS,          %rax
+    jne     .Lstart_done
+    call    sched_fcfs
+
+.Lstart_done:
     call    timeline_finalize
     call    timeline_write
 
@@ -309,5 +324,113 @@ timeline_write:
     leaq    output_buf(%rip),    %rsi
     syscall
     ret
+
+fcfs_all_done:
+    leaq    proc_count(%rip),    %rcx
+    movq    (%rcx),              %rcx
+    xorq    %rdx,                %rdx
+    leaq    proc_array(%rip),    %r8
+.Lfad_loop:
+    cmpq    %rcx,                %rdx
+    jge     .Lfad_yes
+    imulq   $PROC_SIZE,          %rdx,    %r9
+    movq    PROC_DONE(%r8,%r9,1),%rax
+    testq   %rax,                %rax
+    jz      .Lfad_no
+    incq    %rdx
+    jmp     .Lfad_loop
+.Lfad_yes:
+    movq    $1,                  %rax
+    ret
+.Lfad_no:
+    xorq    %rax,                %rax
+    ret
+
+
+fcfs_pick:
+    pushq   %rbx
+    pushq   %r12
+    pushq   %r13
+    pushq   %r14
+    movq    %rdi,                %r14
+    movq    $-1,                 %rbx
+    movq    $-1,                 %r12
+    movq    $-1,                 %r13
+    leaq    proc_count(%rip),    %rcx
+    movq    (%rcx),              %rcx
+    xorq    %rdx,                %rdx
+    leaq    proc_array(%rip),    %r8
+.Lfp_loop:
+    cmpq    %rcx,                %rdx
+    jge     .Lfp_done
+    imulq   $PROC_SIZE,          %rdx,    %r9
+    movq    PROC_DONE(%r8,%r9,1),%rax
+    testq   %rax,                %rax
+    jnz     .Lfp_next
+    movq    PROC_ARRIVAL(%r8,%r9,1),%rax
+    cmpq    %r14,                %rax
+    ja      .Lfp_next
+    cmpq    %r12,                %rax
+    jb      .Lfp_update
+    ja      .Lfp_next
+    movq    PROC_ORDER(%r8,%r9,1),%rax
+    cmpq    %r13,                %rax
+    jae     .Lfp_next
+    movq    %rax,                %r13
+    movq    %rdx,                %rbx
+    jmp     .Lfp_next
+.Lfp_update:
+    movq    %rax,                %r12
+    movq    PROC_ORDER(%r8,%r9,1),%r13
+    movq    %rdx,                %rbx
+.Lfp_next:
+    incq    %rdx
+    jmp     .Lfp_loop
+.Lfp_done:
+    movq    %rbx,                %rax
+    popq    %r14
+    popq    %r13
+    popq    %r12
+    popq    %rbx
+    ret
+
+
+sched_fcfs:
+    pushq   %rbx
+    xorq    %rbx,                %rbx
+.Lfc_outer:
+    call    fcfs_all_done
+    testq   %rax,                %rax
+    jnz     .Lfc_end
+    movq    %rbx,                %rdi
+    call    fcfs_pick
+    cmpq    $-1,                 %rax
+    je      .Lfc_idle
+    imulq   $PROC_SIZE,          %rax,    %rax
+    leaq    proc_array(%rip),    %rcx
+    addq    %rcx,                %rax
+    pushq   %rax
+    movq    PROC_BURST(%rax),    %rcx
+    movzbl  PROC_ID(%rax),       %edi
+.Lfc_run:
+    pushq   %rdi
+    pushq   %rcx
+    call    timeline_append
+    popq    %rcx
+    popq    %rdi
+    incq    %rbx
+    decq    %rcx
+    jnz     .Lfc_run
+    popq    %rax
+    movq    $1,                  PROC_DONE(%rax)
+    jmp     .Lfc_outer
+.Lfc_idle:
+    call    timeline_append_idle
+    incq    %rbx
+    jmp     .Lfc_outer
+.Lfc_end:
+    popq    %rbx
+    ret
+
 
     #PAZAR BİTİYOR
