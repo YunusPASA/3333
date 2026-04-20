@@ -1,3 +1,5 @@
+   #PAZARTESİ BAŞLIYOR
+   
     .equ    MAX_PROC,       10
 
     .equ    ALGO_FCFS,      0
@@ -73,6 +75,15 @@ proc_array:
 # code section and entry point
     .section .text
     .global _start
+
+proc_array:
+    .space  MAX_PROC * PROC_SIZE
+
+
+    #PAZARTESİ BİTİYOR
+
+
+    #CUMARTESİ BAŞLIYOR
 
 # read stdin, initialize tokenizer bounds, write placeholder newline, exit
 _start:
@@ -230,6 +241,11 @@ find_dash:
     xorq    %rax,                %rax
     ret
 
+    #CUMARTESİ BİTİYOR
+
+
+    #PAZAR BAŞLIYOR
+
 # extract one field from a descriptor
 extract_field:
     ret
@@ -253,3 +269,8 @@ parse_proc:
 # parse the full input stream
 parse_input:
     ret
+
+movq    %rax,                PROC_BURST(%r15)
+movq    %rax,                PROC_REMAIN(%r15)
+
+    #PAZAR BİTİYOR

@@ -1,0 +1,5 @@
+cd %USERPcd %USERPROFILE%\Desktop\230-2
+git status
+git add .
+git commit -m "kısa açıklayıcı mesaj"
+git push
