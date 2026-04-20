@@ -16,7 +16,7 @@
     .equ    PROC_ORDER,     40
     .equ    PROC_DONE,      48
     .equ    PROC_SIZE,      56
-    
+
 # constant data
     .section .rodata
 
@@ -118,9 +118,13 @@ _start:
     leaq    algo_id(%rip),       %rcx
     movq    (%rcx),              %rax
     cmpq    $ALGO_FCFS,          %rax
-    jne     .Lstart_done
+    jne     .Lstart_sjf
     call    sched_fcfs
-
+    jmp     .Lstart_done
+.Lstart_sjf:
+    cmpq    $ALGO_SJF,           %rax
+    jne     .Lstart_done
+    call    sched_sjf
 .Lstart_done:
     call    timeline_finalize
     call    timeline_write
@@ -429,6 +433,77 @@ sched_fcfs:
     incq    %rbx
     jmp     .Lfc_outer
 .Lfc_end:
+    popq    %rbx
+    ret
+
+    sjf_pick:
+    pushq   %rbx
+    pushq   %r12
+    pushq   %r13
+    movq    $-1,                 %rbx
+    movq    $-1,                 %r12
+    movq    $-1,                 %r13
+    leaq    proc_count(%rip),    %rcx
+    movq    (%rcx),              %rcx
+    xorq    %rdx,                %rdx
+    leaq    proc_array(%rip),    %r8
+.Lsp_loop:
+    cmpq    %rcx,                %rdx
+    jge     .Lsp_done
+    imulq   $PROC_SIZE,          %rdx,    %r9
+    movq    PROC_DONE(%r8,%r9,1),%rax
+    testq   %rax,                %rax
+    jnz     .Lsp_next
+    movq    PROC_BURST(%r8,%r9,1),%rax
+    cmpq    %r12,                %rax
+    jb      .Lsp_update
+    ja      .Lsp_next
+    movq    PROC_ORDER(%r8,%r9,1),%rax
+    cmpq    %r13,                %rax
+    jae     .Lsp_next
+    movq    %rax,                %r13
+    movq    %rdx,                %rbx
+    jmp     .Lsp_next
+.Lsp_update:
+    movq    %rax,                %r12
+    movq    PROC_ORDER(%r8,%r9,1),%r13
+    movq    %rdx,                %rbx
+.Lsp_next:
+    incq    %rdx
+    jmp     .Lsp_loop
+.Lsp_done:
+    movq    %rbx,                %rax
+    popq    %r13
+    popq    %r12
+    popq    %rbx
+    ret
+
+
+sched_sjf:
+    pushq   %rbx
+.Lsj_outer:
+    call    fcfs_all_done
+    testq   %rax,                %rax
+    jnz     .Lsj_end
+    call    sjf_pick
+    imulq   $PROC_SIZE,          %rax,    %rax
+    leaq    proc_array(%rip),    %rcx
+    addq    %rcx,                %rax
+    pushq   %rax
+    movq    PROC_BURST(%rax),    %rcx
+    movzbl  PROC_ID(%rax),       %edi
+.Lsj_run:
+    pushq   %rdi
+    pushq   %rcx
+    call    timeline_append
+    popq    %rcx
+    popq    %rdi
+    decq    %rcx
+    jnz     .Lsj_run
+    popq    %rax
+    movq    $1,                  PROC_DONE(%rax)
+    jmp     .Lsj_outer
+.Lsj_end:
     popq    %rbx
     ret
 
