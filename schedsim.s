@@ -267,9 +267,51 @@ find_dash:
     ret
 
 extract_field:
+    pushq   %rbx
+    pushq   %r12
+    pushq   %r13
+    movq    %rdi,                %r12
+    movq    %rsi,                %r13
+    movq    %rdx,                %rbx
+.Lef_seek:
+    testq   %rbx,                %rbx
+    jz      .Lef_measure
+    movq    %r12,                %rdi
+    movq    %r13,                %rsi
+    call    find_dash
+    testq   %rax,                %rax
+    jz      .Lef_not_found
+    leaq    1(%rax),             %rcx
+    subq    %r12,                %rcx
+    addq    %rcx,                %r12
+    subq    %rcx,                %r13
+    decq    %rbx
+    jmp     .Lef_seek
+.Lef_measure:
+    movq    %r12,                %rdi
+    movq    %r13,                %rsi
+    call    find_dash
+    testq   %rax,                %rax
+    jz      .Lef_eot
+    subq    %r12,                %rax
+    movq    %rax,                %rdx
+    movq    %r12,                %rax
+    jmp     .Lef_done
+.Lef_eot:
+    movq    %r12,                %rax
+    movq    %r13,                %rdx
+    jmp     .Lef_done
+.Lef_not_found:
+    xorq    %rax,                %rax
+    xorq    %rdx,                %rdx
+.Lef_done:
+    popq    %r13
+    popq    %r12
+    popq    %rbx
     ret
 
 advance_field:
+    leaq    1(%rdi,%rsi,1),      %rax
     ret
 
 store_proc_qword:
