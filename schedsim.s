@@ -273,6 +273,20 @@ advance_field:
     ret
 
 store_proc_qword:
+    imulq   $PROC_SIZE,          %rdi,    %rax
+    leaq    proc_array(%rip),    %rcx
+    addq    %rcx,                %rax
+    movq    %rdx,                (%rax,%rsi,1)
+    ret
+
+init_proc:
+    imulq   $PROC_SIZE,          %rdi,    %rax
+    leaq    proc_array(%rip),    %rcx
+    addq    %rcx,                %rax
+    movq    $0,                  PROC_DONE(%rax)
+    movq    $0,                  PROC_ARRIVAL(%rax)
+    movq    $0,                  PROC_PRIORITY(%rax)
+    movq    %rdi,                PROC_ORDER(%rax)
     ret
 
 identify_algo:
