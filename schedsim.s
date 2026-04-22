@@ -475,6 +475,72 @@ parse_proc:
     ret
 
 parse_input:
+    pushq   %rbx
+    pushq   %r12
+    pushq   %r13
+    pushq   %r14
+    pushq   %r15
+
+    leaq    proc_count(%rip),    %rcx
+    movq    $0,                  (%rcx)
+    leaq    rr_quantum(%rip),    %rcx
+    movq    $0,                  (%rcx)
+    leaq    algo_id(%rip),       %rcx
+    movq    $0,                  (%rcx)
+
+    leaq    proc_array(%rip),    %rdi
+    movq    $0,                  %rax
+    movq    $70,                 %rcx
+    rep stosq
+
+    call    identify_algo
+
+    leaq    algo_id(%rip),       %rcx
+    movq    (%rcx),              %r12
+    xorq    %rbx,                %rbx
+
+.Lpi_loop:
+    call    next_token
+    testq   %rax,                %rax
+    jz      .Lpi_done
+
+    movq    %rax,                %r13
+    movq    %rdx,                %r14
+
+    cmpq    $ALGO_RR,            %r12
+    jne     .Lpi_proc
+
+    movq    %r13,                %rdi
+    movq    %r14,                %rsi
+    call    find_dash
+    testq   %rax,                %rax
+    jz      .Lpi_rr_quantum
+
+.Lpi_proc:
+    movq    %r13,                %rdi
+    movq    %r14,                %rsi
+    movq    %rbx,                %rdx
+    movq    %r12,                %rcx
+    call    parse_proc
+    incq    %rbx
+    leaq    proc_count(%rip),    %rcx
+    movq    %rbx,                (%rcx)
+    jmp     .Lpi_loop
+
+.Lpi_rr_quantum:
+    movq    %r13,                %rdi
+    movq    %r14,                %rsi
+    call    parse_uint
+    leaq    rr_quantum(%rip),    %rcx
+    movq    %rax,                (%rcx)
+    jmp     .Lpi_loop
+
+.Lpi_done:
+    popq    %r15
+    popq    %r14
+    popq    %r13
+    popq    %r12
+    popq    %rbx
     ret
 
 rr_enqueue:
