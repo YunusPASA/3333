@@ -392,6 +392,86 @@ identify_algo:
     ret
 
 parse_proc:
+    pushq   %rbx
+    pushq   %r12
+    pushq   %r13
+    pushq   %r14
+    pushq   %r15
+
+    movq    %rdi,                %r12
+    movq    %rsi,                %r13
+    movq    %rdx,                %r14
+    movq    %rcx,                %r15
+
+    movq    %r14,                %rdi
+    call    init_proc
+
+    movq    %r12,                %rdi
+    movq    %r13,                %rsi
+    xorq    %rdx,                %rdx
+    call    extract_field
+    movzbl  (%rax),              %edx
+    movq    %r14,                %rdi
+    movq    $PROC_ID,            %rsi
+    call    store_proc_qword
+
+    movq    %r12,                %rdi
+    movq    %r13,                %rsi
+    movq    $1,                  %rdx
+    call    extract_field
+    movq    %rax,                %rdi
+    movq    %rdx,                %rsi
+    call    parse_uint
+    movq    %rax,                %rbx
+
+    movq    %r14,                %rdi
+    movq    $PROC_BURST,         %rsi
+    movq    %rbx,                %rdx
+    call    store_proc_qword
+
+    movq    %r14,                %rdi
+    movq    $PROC_REMAIN,        %rsi
+    movq    %rbx,                %rdx
+    call    store_proc_qword
+
+    cmpq    $ALGO_SJF,           %r15
+    je      .Lpp_done
+    cmpq    $ALGO_RR,            %r15
+    je      .Lpp_done
+
+    movq    %r12,                %rdi
+    movq    %r13,                %rsi
+    movq    $2,                  %rdx
+    call    extract_field
+    movq    %rax,                %rdi
+    movq    %rdx,                %rsi
+    call    parse_uint
+    movq    %r14,                %rdi
+    movq    $PROC_ARRIVAL,       %rsi
+    movq    %rax,                %rdx
+    call    store_proc_qword
+
+    cmpq    $ALGO_PF,            %r15
+    jne     .Lpp_done
+
+    movq    %r12,                %rdi
+    movq    %r13,                %rsi
+    movq    $3,                  %rdx
+    call    extract_field
+    movq    %rax,                %rdi
+    movq    %rdx,                %rsi
+    call    parse_uint
+    movq    %r14,                %rdi
+    movq    $PROC_PRIORITY,      %rsi
+    movq    %rax,                %rdx
+    call    store_proc_qword
+
+.Lpp_done:
+    popq    %r15
+    popq    %r14
+    popq    %r13
+    popq    %r12
+    popq    %rbx
     ret
 
 parse_input:
