@@ -1,3 +1,5 @@
+    .equ    MAX_PROC,       10
+
     .equ    ALGO_FCFS,      0
     .equ    ALGO_SJF,       1
     .equ    ALGO_SRTF,      2
@@ -8,8 +10,8 @@
     .equ    PROC_BURST,     8
     .equ    PROC_ARRIVAL,   16
     .equ    PROC_PRIORITY,  24
-    .equ    PROC_ORDER,     32
-    .equ    PROC_REMAIN,    40
+    .equ    PROC_REMAIN,    32
+    .equ    PROC_ORDER,     40
     .equ    PROC_DONE,      48
     .equ    PROC_SIZE,      56
 
@@ -20,12 +22,16 @@ newline_char:
 
 str_fcfs:
     .asciz  "FCFS"
+
 str_sjf:
     .asciz  "SJF"
+
 str_srtf:
     .asciz  "SRTF"
+
 str_pf:
     .asciz  "PF"
+
 str_rr:
     .asciz  "RR"
 
@@ -61,10 +67,26 @@ rr_quantum:
 
     .balign 8
 proc_array:
-    .space  560
+    .space  MAX_PROC * PROC_SIZE
 
     .balign 8
 out_len:
+    .space  8
+
+    .balign 8
+rr_queue:
+    .space  80
+
+    .balign 8
+rr_head:
+    .space  8
+
+    .balign 8
+rr_tail:
+    .space  8
+
+    .balign 8
+rr_size:
     .space  8
 
     .section .text
@@ -91,8 +113,28 @@ _start:
     leaq    algo_id(%rip),       %rcx
     movq    (%rcx),              %rax
     cmpq    $ALGO_FCFS,          %rax
-    jne     .Lstart_done
+    jne     .Lstart_sjf
     call    sched_fcfs
+    jmp     .Lstart_done
+.Lstart_sjf:
+    cmpq    $ALGO_SJF,           %rax
+    jne     .Lstart_srtf
+    call    sched_sjf
+    jmp     .Lstart_done
+.Lstart_srtf:
+    cmpq    $ALGO_SRTF,          %rax
+    jne     .Lstart_pf
+    call    sched_srtf
+    jmp     .Lstart_done
+.Lstart_pf:
+    cmpq    $ALGO_PF,            %rax
+    jne     .Lstart_rr
+    call    sched_pf
+    jmp     .Lstart_done
+.Lstart_rr:
+    cmpq    $ALGO_RR,            %rax
+    jne     .Lstart_done
+    call    sched_rr
 .Lstart_done:
     call    timeline_finalize
     call    timeline_write
@@ -231,144 +273,138 @@ find_dash:
 
 
 extract_field:
-    movq    %rdi,                %rax
-    movq    %rdi,                %rcx
-    movq    %rsi,                %r8
-.Lef_loop:
-    testq   %r8,                 %r8
-    jz      .Lef_done
-    movb    (%rcx),              %dl
-    cmpb    $0x2d,               %dl
-    je      .Lef_done
-    incq    %rcx
-    decq    %r8
-    jmp     .Lef_loop
-.Lef_done:
-    movq    %rcx,                %rdx
-    subq    %rax,                %rdx
     ret
 
+advance_field:
+    ret
+
+store_proc_qword:
+    ret
 
 identify_algo:
-    pushq   %rbx
-    pushq   %r12
-    movq    %rdi,                %rbx
-    movq    %rsi,                %r12
-    leaq    str_fcfs(%rip),      %rdx
-    call    token_equals
-    testq   %rax,                %rax
-    jz      .Lia_sjf
-    movq    $ALGO_FCFS,          %rax
-    jmp     .Lia_store
-.Lia_sjf:
-    movq    %rbx,                %rdi
-    movq    %r12,                %rsi
-    leaq    str_sjf(%rip),       %rdx
-    call    token_equals
-    testq   %rax,                %rax
-    jz      .Lia_srtf
-    movq    $ALGO_SJF,           %rax
-    jmp     .Lia_store
-.Lia_srtf:
-    movq    %rbx,                %rdi
-    movq    %r12,                %rsi
-    leaq    str_srtf(%rip),      %rdx
-    call    token_equals
-    testq   %rax,                %rax
-    jz      .Lia_pf
-    movq    $ALGO_SRTF,          %rax
-    jmp     .Lia_store
-.Lia_pf:
-    movq    %rbx,                %rdi
-    movq    %r12,                %rsi
-    leaq    str_pf(%rip),        %rdx
-    call    token_equals
-    testq   %rax,                %rax
-    jz      .Lia_rr
-    movq    $ALGO_PF,            %rax
-    jmp     .Lia_store
-.Lia_rr:
-    movq    $ALGO_RR,            %rax
-.Lia_store:
-    leaq    algo_id(%rip),       %rcx
-    movq    %rax,                (%rcx)
-    popq    %r12
-    popq    %rbx
+    ret
+
+parse_proc:
+    ret
+
+parse_input:
     ret
 
 
-parse_proc:
+rr_enqueue:
+    leaq    rr_tail(%rip),       %rcx
+    movq    (%rcx),              %rax
+    leaq    rr_queue(%rip),      %rdx
+    movq    %rdi,                (%rdx,%rax,8)
+    incq    %rax
+    cmpq    $10,                 %rax
+    jb      .Lren_no_wrap
+    xorq    %rax,                %rax
+.Lren_no_wrap:
+    leaq    rr_tail(%rip),       %rcx
+    movq    %rax,                (%rcx)
+    leaq    rr_size(%rip),       %rcx
+    incq    (%rcx)
+    ret
+
+
+rr_dequeue:
+    leaq    rr_head(%rip),       %rcx
+    movq    (%rcx),              %rax
+    leaq    rr_queue(%rip),      %rdx
+    movq    (%rdx,%rax,8),       %rdx
+    incq    %rax
+    cmpq    $10,                 %rax
+    jb      .Lrde_no_wrap
+    xorq    %rax,                %rax
+.Lrde_no_wrap:
+    leaq    rr_head(%rip),       %rcx
+    movq    %rax,                (%rcx)
+    leaq    rr_size(%rip),       %rcx
+    decq    (%rcx)
+    movq    %rdx,                %rax
+    ret
+
+
+sched_rr:
     pushq   %rbx
     pushq   %r12
     pushq   %r13
     pushq   %r14
     pushq   %r15
-    movq    %rdi,                %rbx
-    movq    %rsi,                %r12
-    movq    %rdx,                %r13
+
+    leaq    rr_head(%rip),       %rcx
+    movq    $0,                  (%rcx)
+    leaq    rr_tail(%rip),       %rcx
+    movq    $0,                  (%rcx)
+    leaq    rr_size(%rip),       %rcx
+    movq    $0,                  (%rcx)
+
+    xorq    %rbx,                %rbx
+.Lrr_init:
     leaq    proc_count(%rip),    %rcx
-    movq    (%rcx),              %r14
-    imulq   $PROC_SIZE,          %r14,    %r15
+    movq    (%rcx),              %rcx
+    cmpq    %rcx,                %rbx
+    jge     .Lrr_main
+    movq    %rbx,                %rdi
+    call    rr_enqueue
+    incq    %rbx
+    jmp     .Lrr_init
+
+.Lrr_main:
+    leaq    rr_size(%rip),       %rcx
+    movq    (%rcx),              %rcx
+    testq   %rcx,                %rcx
+    jz      .Lrr_end
+
+    call    rr_dequeue
+    movq    %rax,                %rbx
+    imulq   $PROC_SIZE,          %rbx,    %r12
     leaq    proc_array(%rip),    %rcx
-    addq    %rcx,                %r15
+    addq    %rcx,                %r12
+
+    movzbl  PROC_ID(%r12),       %r13d
+
+    leaq    rr_quantum(%rip),    %rcx
+    movq    (%rcx),              %rax
+    movq    PROC_REMAIN(%r12),   %rcx
+    movq    %rax,                %r14
+    cmpq    %rax,                %rcx
+    jge     .Lrr_slots
+    movq    %rcx,                %r14
+.Lrr_slots:
+    leaq    rr_quantum(%rip),    %rcx
+    movq    (%rcx),              %r15
+    subq    %r14,                %r15
+
+.Lrr_active:
+    testq   %r14,                %r14
+    jz      .Lrr_active_done
+    movq    %r13,                %rdi
+    call    timeline_append
+    decq    PROC_REMAIN(%r12)
+    decq    %r14
+    jmp     .Lrr_active
+
+.Lrr_active_done:
+    movq    PROC_REMAIN(%r12),   %rax
+    testq   %rax,                %rax
+    jnz     .Lrr_reenqueue
+
+    movq    $1,                  PROC_DONE(%r12)
+.Lrr_pad:
+    testq   %r15,                %r15
+    jz      .Lrr_main
+    call    timeline_append_idle
+    decq    %r15
+    jmp     .Lrr_pad
+
+.Lrr_reenqueue:
     movq    %rbx,                %rdi
-    movq    %r12,                %rsi
-    call    extract_field
-    movb    (%rax),              %cl
-    movb    %cl,                 PROC_ID(%r15)
-    addq    %rdx,                %rbx
-    subq    %rdx,                %r12
-    incq    %rbx
-    decq    %r12
-    movq    %rbx,                %rdi
-    movq    %r12,                %rsi
-    call    extract_field
-    movq    %rax,                %rdi
-    movq    %rdx,                %rsi
-    addq    %rdx,                %rbx
-    subq    %rdx,                %r12
-    call    parse_uint
-    movq    %rax,                PROC_BURST(%r15)
-    movq    %rax,                PROC_REMAIN(%r15)
-    cmpq    $ALGO_FCFS,          %r13
-    je      .Lpp_arrival
-    cmpq    $ALGO_SRTF,          %r13
-    je      .Lpp_arrival
-    cmpq    $ALGO_PF,            %r13
-    je      .Lpp_arrival
-    movq    $0,                  PROC_ARRIVAL(%r15)
-    movq    $0,                  PROC_PRIORITY(%r15)
-    jmp     .Lpp_finish
-.Lpp_arrival:
-    incq    %rbx
-    decq    %r12
-    movq    %rbx,                %rdi
-    movq    %r12,                %rsi
-    call    extract_field
-    movq    %rax,                %rdi
-    movq    %rdx,                %rsi
-    addq    %rdx,                %rbx
-    subq    %rdx,                %r12
-    call    parse_uint
-    movq    %rax,                PROC_ARRIVAL(%r15)
-    cmpq    $ALGO_PF,            %r13
-    jne     .Lpp_no_prio
-    incq    %rbx
-    decq    %r12
-    movq    %rbx,                %rdi
-    movq    %r12,                %rsi
-    call    extract_field
-    movq    %rax,                %rdi
-    movq    %rdx,                %rsi
-    call    parse_uint
-    movq    %rax,                PROC_PRIORITY(%r15)
-    jmp     .Lpp_finish
-.Lpp_no_prio:
-    movq    $0,                  PROC_PRIORITY(%r15)
-.Lpp_finish:
-    movq    %r14,                PROC_ORDER(%r15)
-    leaq    proc_count(%rip),    %rcx
-    incq    (%rcx)
+    call    rr_enqueue
+    jmp     .Lrr_main
+
+.Lrr_end:
     popq    %r15
     popq    %r14
     popq    %r13
@@ -377,46 +413,39 @@ parse_proc:
     ret
 
 
-parse_input:
-    pushq   %rbx
-    pushq   %r12
-    pushq   %r13
-    call    next_token
-    testq   %rdx,                %rdx
-    jz      .Lpi_done
-    movq    %rax,                %rdi
-    movq    %rdx,                %rsi
-    call    identify_algo
-    movq    %rax,                %rbx
-.Lpi_loop:
-    call    next_token
-    testq   %rdx,                %rdx
-    jz      .Lpi_done
-    movq    %rax,                %r12
-    movq    %rdx,                %r13
-    cmpq    $ALGO_RR,            %rbx
-    jne     .Lpi_proc
-    movq    %r12,                %rdi
-    movq    %r13,                %rsi
-    call    find_dash
-    testq   %rax,                %rax
-    jz      .Lpi_quantum
-.Lpi_proc:
-    movq    %r12,                %rdi
-    movq    %r13,                %rsi
-    movq    %rbx,                %rdx
-    call    parse_proc
-    jmp     .Lpi_loop
-.Lpi_quantum:
-    movq    %r12,                %rdi
-    movq    %r13,                %rsi
-    call    parse_uint
-    leaq    rr_quantum(%rip),    %rcx
+timeline_init:
+    leaq    out_len(%rip),       %rcx
+    movq    $0,                  (%rcx)
+    ret
+
+
+timeline_append:
+    leaq    out_len(%rip),       %rcx
+    movq    (%rcx),              %rax
+    leaq    output_buf(%rip),    %rdx
+    movb    %dil,                (%rdx,%rax,1)
+    incq    %rax
     movq    %rax,                (%rcx)
-.Lpi_done:
-    popq    %r13
-    popq    %r12
-    popq    %rbx
+    ret
+
+
+timeline_append_idle:
+    movq    $0x58,               %rdi
+    jmp     timeline_append
+
+
+timeline_finalize:
+    movq    $0x0a,               %rdi
+    jmp     timeline_append
+
+
+timeline_write:
+    leaq    out_len(%rip),       %rcx
+    movq    (%rcx),              %rdx
+    movq    $1,                  %rax
+    movq    $1,                  %rdi
+    leaq    output_buf(%rip),    %rsi
+    syscall
     ret
 
 
@@ -528,37 +557,250 @@ sched_fcfs:
     ret
 
 
-timeline_init:
-    leaq    out_len(%rip),       %rcx
-    movq    $0,                  (%rcx)
+sjf_pick:
+    pushq   %rbx
+    pushq   %r12
+    pushq   %r13
+    movq    $-1,                 %rbx
+    movq    $-1,                 %r12
+    movq    $-1,                 %r13
+    leaq    proc_count(%rip),    %rcx
+    movq    (%rcx),              %rcx
+    xorq    %rdx,                %rdx
+    leaq    proc_array(%rip),    %r8
+.Lsp_loop:
+    cmpq    %rcx,                %rdx
+    jge     .Lsp_done
+    imulq   $PROC_SIZE,          %rdx,    %r9
+    movq    PROC_DONE(%r8,%r9,1),%rax
+    testq   %rax,                %rax
+    jnz     .Lsp_next
+    movq    PROC_BURST(%r8,%r9,1),%rax
+    cmpq    %r12,                %rax
+    jb      .Lsp_update
+    ja      .Lsp_next
+    movq    PROC_ORDER(%r8,%r9,1),%rax
+    cmpq    %r13,                %rax
+    jae     .Lsp_next
+    movq    %rax,                %r13
+    movq    %rdx,                %rbx
+    jmp     .Lsp_next
+.Lsp_update:
+    movq    %rax,                %r12
+    movq    PROC_ORDER(%r8,%r9,1),%r13
+    movq    %rdx,                %rbx
+.Lsp_next:
+    incq    %rdx
+    jmp     .Lsp_loop
+.Lsp_done:
+    movq    %rbx,                %rax
+    popq    %r13
+    popq    %r12
+    popq    %rbx
     ret
 
 
-timeline_append:
-    leaq    out_len(%rip),       %rcx
-    movq    (%rcx),              %rax
-    leaq    output_buf(%rip),    %rdx
-    movb    %dil,                (%rdx,%rax,1)
-    incq    %rax
-    movq    %rax,                (%rcx)
+sched_sjf:
+    pushq   %rbx
+.Lsj_outer:
+    call    fcfs_all_done
+    testq   %rax,                %rax
+    jnz     .Lsj_end
+    call    sjf_pick
+    imulq   $PROC_SIZE,          %rax,    %rax
+    leaq    proc_array(%rip),    %rcx
+    addq    %rcx,                %rax
+    pushq   %rax
+    movq    PROC_BURST(%rax),    %rcx
+    movzbl  PROC_ID(%rax),       %edi
+.Lsj_run:
+    pushq   %rdi
+    pushq   %rcx
+    call    timeline_append
+    popq    %rcx
+    popq    %rdi
+    decq    %rcx
+    jnz     .Lsj_run
+    popq    %rax
+    movq    $1,                  PROC_DONE(%rax)
+    jmp     .Lsj_outer
+.Lsj_end:
+    popq    %rbx
     ret
 
 
-timeline_append_idle:
-    movq    $0x58,               %rdi
-    jmp     timeline_append
+srtf_pick:
+    pushq   %rbx
+    pushq   %r12
+    pushq   %r13
+    pushq   %r14
+    movq    %rdi,                %r14
+    movq    $-1,                 %rbx
+    movq    $-1,                 %r12
+    movq    $-1,                 %r13
+    leaq    proc_count(%rip),    %rcx
+    movq    (%rcx),              %rcx
+    xorq    %rdx,                %rdx
+    leaq    proc_array(%rip),    %r8
+.Lsrp_loop:
+    cmpq    %rcx,                %rdx
+    jge     .Lsrp_done
+    imulq   $PROC_SIZE,          %rdx,    %r9
+    movq    PROC_DONE(%r8,%r9,1),%rax
+    testq   %rax,                %rax
+    jnz     .Lsrp_next
+    movq    PROC_ARRIVAL(%r8,%r9,1),%rax
+    cmpq    %r14,                %rax
+    ja      .Lsrp_next
+    movq    PROC_REMAIN(%r8,%r9,1),%rax
+    cmpq    %r12,                %rax
+    jb      .Lsrp_update
+    ja      .Lsrp_next
+    movq    PROC_ORDER(%r8,%r9,1),%rax
+    cmpq    %r13,                %rax
+    jae     .Lsrp_next
+    movq    %rax,                %r13
+    movq    %rdx,                %rbx
+    jmp     .Lsrp_next
+.Lsrp_update:
+    movq    %rax,                %r12
+    movq    PROC_ORDER(%r8,%r9,1),%r13
+    movq    %rdx,                %rbx
+.Lsrp_next:
+    incq    %rdx
+    jmp     .Lsrp_loop
+.Lsrp_done:
+    movq    %rbx,                %rax
+    popq    %r14
+    popq    %r13
+    popq    %r12
+    popq    %rbx
+    ret
 
 
-timeline_finalize:
-    movq    $0x0a,               %rdi
-    jmp     timeline_append
+sched_srtf:
+    pushq   %rbx
+    xorq    %rbx,                %rbx
+.Lsr_outer:
+    call    fcfs_all_done
+    testq   %rax,                %rax
+    jnz     .Lsr_end
+    movq    %rbx,                %rdi
+    call    srtf_pick
+    cmpq    $-1,                 %rax
+    je      .Lsr_idle
+    imulq   $PROC_SIZE,          %rax,    %rax
+    leaq    proc_array(%rip),    %rcx
+    addq    %rcx,                %rax
+    movzbl  PROC_ID(%rax),       %edi
+    pushq   %rax
+    call    timeline_append
+    popq    %rax
+    decq    PROC_REMAIN(%rax)
+    jnz     .Lsr_next
+    movq    $1,                  PROC_DONE(%rax)
+.Lsr_next:
+    incq    %rbx
+    jmp     .Lsr_outer
+.Lsr_idle:
+    call    timeline_append_idle
+    incq    %rbx
+    jmp     .Lsr_outer
+.Lsr_end:
+    popq    %rbx
+    ret
 
 
-timeline_write:
-    leaq    out_len(%rip),       %rcx
-    movq    (%rcx),              %rdx
-    movq    $1,                  %rax
-    movq    $1,                  %rdi
-    leaq    output_buf(%rip),    %rsi
-    syscall
+pf_pick:
+    pushq   %rbx
+    pushq   %r12
+    pushq   %r13
+    pushq   %r14
+    pushq   %r15
+    movq    %rdi,                %r14
+    movq    $-1,                 %rbx
+    movq    $-1,                 %r12
+    movq    $-1,                 %r13
+    movq    $-1,                 %r15
+    leaq    proc_count(%rip),    %rcx
+    movq    (%rcx),              %rcx
+    xorq    %rdx,                %rdx
+    leaq    proc_array(%rip),    %r8
+.Lpfp_loop:
+    cmpq    %rcx,                %rdx
+    jge     .Lpfp_done
+    imulq   $PROC_SIZE,          %rdx,    %r9
+    movq    PROC_DONE(%r8,%r9,1),%rax
+    testq   %rax,                %rax
+    jnz     .Lpfp_next
+    movq    PROC_ARRIVAL(%r8,%r9,1),%rax
+    cmpq    %r14,                %rax
+    ja      .Lpfp_next
+    movq    PROC_PRIORITY(%r8,%r9,1),%rax
+    cmpq    %r12,                %rax
+    jb      .Lpfp_update
+    ja      .Lpfp_next
+    movq    PROC_REMAIN(%r8,%r9,1),%rax
+    cmpq    %r13,                %rax
+    jb      .Lpfp_update_remain
+    ja      .Lpfp_next
+    movq    PROC_ORDER(%r8,%r9,1),%rax
+    cmpq    %r15,                %rax
+    jae     .Lpfp_next
+    movq    %rax,                %r15
+    movq    %rdx,                %rbx
+    jmp     .Lpfp_next
+.Lpfp_update_remain:
+    movq    %rax,                %r13
+    movq    PROC_ORDER(%r8,%r9,1),%r15
+    movq    %rdx,                %rbx
+    jmp     .Lpfp_next
+.Lpfp_update:
+    movq    %rax,                %r12
+    movq    PROC_REMAIN(%r8,%r9,1),%r13
+    movq    PROC_ORDER(%r8,%r9,1),%r15
+    movq    %rdx,                %rbx
+.Lpfp_next:
+    incq    %rdx
+    jmp     .Lpfp_loop
+.Lpfp_done:
+    movq    %rbx,                %rax
+    popq    %r15
+    popq    %r14
+    popq    %r13
+    popq    %r12
+    popq    %rbx
+    ret
+
+
+sched_pf:
+    pushq   %rbx
+    xorq    %rbx,                %rbx
+.Lpf_outer:
+    call    fcfs_all_done
+    testq   %rax,                %rax
+    jnz     .Lpf_end
+    movq    %rbx,                %rdi
+    call    pf_pick
+    cmpq    $-1,                 %rax
+    je      .Lpf_idle
+    imulq   $PROC_SIZE,          %rax,    %rax
+    leaq    proc_array(%rip),    %rcx
+    addq    %rcx,                %rax
+    movzbl  PROC_ID(%rax),       %edi
+    pushq   %rax
+    call    timeline_append
+    popq    %rax
+    decq    PROC_REMAIN(%rax)
+    jnz     .Lpf_next
+    movq    $1,                  PROC_DONE(%rax)
+.Lpf_next:
+    incq    %rbx
+    jmp     .Lpf_outer
+.Lpf_idle:
+    call    timeline_append_idle
+    incq    %rbx
+    jmp     .Lpf_outer
+.Lpf_end:
+    popq    %rbx
     ret
