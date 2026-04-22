@@ -332,6 +332,63 @@ init_proc:
     ret
 
 identify_algo:
+    pushq   %rbx
+    pushq   %r12
+
+    call    next_token
+    movq    %rax,                %rbx
+    movq    %rdx,                %r12
+
+    movq    %rbx,                %rdi
+    movq    %r12,                %rsi
+    leaq    str_fcfs(%rip),      %rdx
+    call    token_equals
+    testq   %rax,                %rax
+    jz      .Lia_sjf
+    leaq    algo_id(%rip),       %rcx
+    movq    $ALGO_FCFS,          (%rcx)
+    jmp     .Lia_done
+
+.Lia_sjf:
+    movq    %rbx,                %rdi
+    movq    %r12,                %rsi
+    leaq    str_sjf(%rip),       %rdx
+    call    token_equals
+    testq   %rax,                %rax
+    jz      .Lia_srtf
+    leaq    algo_id(%rip),       %rcx
+    movq    $ALGO_SJF,           (%rcx)
+    jmp     .Lia_done
+
+.Lia_srtf:
+    movq    %rbx,                %rdi
+    movq    %r12,                %rsi
+    leaq    str_srtf(%rip),      %rdx
+    call    token_equals
+    testq   %rax,                %rax
+    jz      .Lia_pf
+    leaq    algo_id(%rip),       %rcx
+    movq    $ALGO_SRTF,          (%rcx)
+    jmp     .Lia_done
+
+.Lia_pf:
+    movq    %rbx,                %rdi
+    movq    %r12,                %rsi
+    leaq    str_pf(%rip),        %rdx
+    call    token_equals
+    testq   %rax,                %rax
+    jz      .Lia_rr
+    leaq    algo_id(%rip),       %rcx
+    movq    $ALGO_PF,            (%rcx)
+    jmp     .Lia_done
+
+.Lia_rr:
+    leaq    algo_id(%rip),       %rcx
+    movq    $ALGO_RR,            (%rcx)
+
+.Lia_done:
+    popq    %r12
+    popq    %rbx
     ret
 
 parse_proc:
